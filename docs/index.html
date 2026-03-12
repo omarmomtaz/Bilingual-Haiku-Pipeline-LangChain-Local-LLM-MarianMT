@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Omar Momtaz — Bilingual Haiku Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red:    #8B0000;
+  --red-bright: #C0392B;
+  --gold:   #D4AF37;
+  --gold-dim: #9A7D20;
+  --black:  #0A0A0A;
+  --black2: #111111;
+  --black3: #181818;
+  --cyan:   #00E5FF;
+  --cyan-dim: #007A99;
+  --white:  #F0EDE8;
+  --grey:   #888;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* ── Custom Cursor ── */
+.cursor {
+  position: fixed; top: 0; left: 0; pointer-events: none; z-index: 9999;
+  width: 12px; height: 12px;
+  background: var(--cyan);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: transform 0.1s, width 0.2s, height 0.2s, background 0.2s;
+  mix-blend-mode: difference;
+}
+.cursor-ring {
+  position: fixed; top: 0; left: 0; pointer-events: none; z-index: 9998;
+  width: 36px; height: 36px;
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s ease-out, width 0.3s, height 0.3s;
+}
+
+/* ── Noise Overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 1;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Scroll progress bar ── */
+#progress {
+  position: fixed; top: 0; left: 0; height: 2px;
+  background: linear-gradient(90deg, var(--red), var(--gold), var(--cyan));
+  z-index: 1000; width: 0%; transition: width 0.1s;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1.2rem 4rem;
+  background: linear-gradient(180deg, rgba(10,10,10,0.95) 0%, transparent 100%);
+  backdrop-filter: blur(4px);
+}
+.nav-logo {
+  font-family: 'Cinzel', serif;
+  font-weight: 900; font-size: 1.1rem;
+  letter-spacing: 0.25em;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+.nav-logo span { color: var(--cyan); }
+.nav-links { display: flex; gap: 2.5rem; }
+.nav-links a {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--grey);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+.nav-links a:hover { color: var(--cyan); }
+
+/* ── HERO ── */
+#hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+  padding: 8rem 4rem 4rem;
+}
+
+/* Animated grid background */
+.hero-grid {
+  position: absolute; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: gridMove 20s linear infinite;
+}
+@keyframes gridMove {
+  0% { background-position: 0 0; }
+  100% { background-position: 60px 60px; }
+}
+
+/* Red vignette corner */
+.hero-vignette {
+  position: absolute; inset: 0; z-index: 0;
+  background: radial-gradient(ellipse at 0% 100%, rgba(139,0,0,0.35) 0%, transparent 60%),
+              radial-gradient(ellipse at 100% 0%, rgba(212,175,55,0.1) 0%, transparent 50%);
+}
+
+/* Floating kanji */
+.kanji-bg {
+  position: absolute; inset: 0; z-index: 0;
+  overflow: hidden; pointer-events: none;
+}
+.kanji-bg span {
+  position: absolute;
+  font-family: 'Cinzel', serif;
+  color: rgba(212,175,55,0.06);
+  font-size: clamp(4rem, 10vw, 12rem);
+  font-weight: 900;
+  animation: kanjiFloat linear infinite;
+  user-select: none;
+}
+@keyframes kanjiFloat {
+  0%   { transform: translateY(110vh) rotate(-5deg); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(-20vh) rotate(5deg); opacity: 0; }
+}
+
+.hero-content { position: relative; z-index: 2; text-align: center; max-width: 900px; }
+
+.hero-eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem; letter-spacing: 0.4em;
+  text-transform: uppercase; color: var(--cyan);
+  margin-bottom: 1.5rem;
+  opacity: 0; animation: fadeUp 0.8s 0.3s forwards;
+}
+
+.hero-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(2.8rem, 6vw, 5.5rem);
+  font-weight: 900; line-height: 1.05;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+  opacity: 0; animation: fadeUp 0.8s 0.5s forwards;
+}
+.hero-title .line-red { color: var(--red-bright); display: block; }
+.hero-title .line-gold { color: var(--gold); display: block; }
+
+.hero-sub {
+  font-size: 1.1rem; color: rgba(240,237,232,0.6);
+  max-width: 560px; margin: 0 auto 2.5rem;
+  opacity: 0; animation: fadeUp 0.8s 0.7s forwards;
+}
+
+.hero-tags {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+  justify-content: center; margin-bottom: 3rem;
+  opacity: 0; animation: fadeUp 0.8s 0.9s forwards;
+}
+.tag {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.4rem 1rem;
+  border: 1px solid;
+  transition: all 0.3s;
+}
+.tag-red   { border-color: var(--red);  color: var(--red-bright); }
+.tag-gold  { border-color: var(--gold-dim); color: var(--gold); }
+.tag-cyan  { border-color: var(--cyan-dim); color: var(--cyan); }
+.tag:hover { background: rgba(255,255,255,0.05); transform: translateY(-2px); }
+
+/* Pipeline visual in hero */
+.hero-pipeline {
+  display: flex; align-items: center; gap: 0; justify-content: center;
+  opacity: 0; animation: fadeUp 0.8s 1.1s forwards;
+  flex-wrap: wrap;
+}
+.pipe-node {
+  background: var(--black3);
+  border: 1px solid rgba(212,175,55,0.3);
+  padding: 0.6rem 1.2rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.1em;
+  text-align: center; position: relative;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.pipe-node:hover { border-color: var(--cyan); box-shadow: 0 0 20px rgba(0,229,255,0.15); }
+.pipe-node .node-label { color: var(--grey); font-size: 0.55rem; margin-bottom: 0.2rem; }
+.pipe-node .node-val { color: var(--gold); }
+.pipe-arrow {
+  color: var(--cyan); font-size: 1.2rem; padding: 0 0.3rem;
+  opacity: 0.6;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.scroll-hint {
+  position: absolute; bottom: 2.5rem; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  opacity: 0; animation: fadeUp 1s 1.8s forwards;
+  z-index: 2;
+}
+.scroll-hint span {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.3em; color: var(--grey);
+  text-transform: uppercase;
+}
+.scroll-line {
+  width: 1px; height: 50px;
+  background: linear-gradient(180deg, var(--gold), transparent);
+  animation: scrollPulse 2s ease-in-out infinite;
+}
+@keyframes scrollPulse {
+  0%, 100% { opacity: 0.3; transform: scaleY(1); }
+  50% { opacity: 1; transform: scaleY(1.1); }
+}
+
+/* ── SECTIONS ── */
+section {
+  padding: 8rem 4rem;
+  position: relative;
+  z-index: 2;
+}
+.section-inner { max-width: 1100px; margin: 0 auto; }
+
+.section-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.4em;
+  text-transform: uppercase; color: var(--cyan);
+  margin-bottom: 1rem;
+  display: flex; align-items: center; gap: 1rem;
+}
+.section-label::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--cyan-dim), transparent);
+  max-width: 200px;
+}
+
+.section-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(1.8rem, 3.5vw, 3rem);
+  font-weight: 700; margin-bottom: 1rem;
+  line-height: 1.15;
+}
+
+/* ── PROBLEM SECTION ── */
+#problem { background: var(--black); }
+
+.problem-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px; background: rgba(212,175,55,0.1);
+  margin-top: 4rem; border: 1px solid rgba(212,175,55,0.1);
+}
+.problem-card {
+  background: var(--black2);
+  padding: 2.5rem 2rem;
+  position: relative; overflow: hidden;
+  transition: background 0.3s;
+}
+.problem-card:hover { background: var(--black3); }
+.problem-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.problem-card:nth-child(1)::before { background: var(--red); }
+.problem-card:nth-child(2)::before { background: var(--gold); }
+.problem-card:nth-child(3)::before { background: var(--cyan); }
+
+.problem-num {
+  font-family: 'Cinzel', serif; font-weight: 900;
+  font-size: 3rem; opacity: 0.08; line-height: 1;
+  position: absolute; top: 1rem; right: 1.5rem;
+  color: var(--white);
+}
+.problem-icon { font-size: 2rem; margin-bottom: 1rem; }
+.problem-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700; font-size: 1.1rem;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+.problem-card:nth-child(1) .problem-title { color: var(--red-bright); }
+.problem-card:nth-child(2) .problem-title { color: var(--gold); }
+.problem-card:nth-child(3) .problem-title { color: var(--cyan); }
+.problem-desc { color: rgba(240,237,232,0.6); font-size: 0.95rem; line-height: 1.7; }
+.problem-fix {
+  margin-top: 1.2rem; padding-top: 1.2rem;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem; color: rgba(240,237,232,0.4);
+  line-height: 1.6;
+}
+.problem-fix strong { color: var(--white); opacity: 0.7; }
+
+/* ── ARCHITECTURE SECTION ── */
+#architecture { background: var(--black2); }
+
+.arch-flow {
+  display: flex; flex-direction: column; gap: 0;
+  margin-top: 4rem; position: relative;
+}
+.arch-flow::before {
+  content: '';
+  position: absolute; left: 2.5rem; top: 0; bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, var(--red), var(--gold), var(--cyan));
+}
+
+.arch-step {
+  display: grid; grid-template-columns: 5rem 1fr;
+  gap: 2rem; padding: 2rem 0;
+  position: relative;
+}
+.arch-step-num {
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 0.3rem; z-index: 1;
+}
+.arch-step-dot {
+  width: 1.2rem; height: 1.2rem; border-radius: 50%;
+  border: 2px solid; position: relative;
+  background: var(--black2);
+  display: flex; align-items: center; justify-content: center;
+}
+.arch-step:nth-child(1) .arch-step-dot { border-color: var(--red); box-shadow: 0 0 12px rgba(139,0,0,0.5); }
+.arch-step:nth-child(2) .arch-step-dot { border-color: var(--gold); box-shadow: 0 0 12px rgba(212,175,55,0.4); }
+.arch-step:nth-child(3) .arch-step-dot { border-color: var(--cyan); box-shadow: 0 0 12px rgba(0,229,255,0.4); }
+.arch-step-dot::after {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+}
+.arch-step:nth-child(1) .arch-step-dot::after { background: var(--red); }
+.arch-step:nth-child(2) .arch-step-dot::after { background: var(--gold); }
+.arch-step:nth-child(3) .arch-step-dot::after { background: var(--cyan); }
+
+.arch-step-body {}
+.arch-step-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.2em;
+  text-transform: uppercase; margin-bottom: 0.4rem;
+}
+.arch-step:nth-child(1) .arch-step-label { color: var(--red-bright); }
+.arch-step:nth-child(2) .arch-step-label { color: var(--gold); }
+.arch-step:nth-child(3) .arch-step-label { color: var(--cyan); }
+.arch-step-title {
+  font-family: 'Cinzel', serif; font-weight: 700;
+  font-size: 1.3rem; margin-bottom: 0.6rem;
+}
+.arch-step-desc { color: rgba(240,237,232,0.65); font-size: 0.95rem; max-width: 600px; line-height: 1.7; }
+.arch-code {
+  margin-top: 1rem;
+  background: var(--black); border: 1px solid rgba(255,255,255,0.06);
+  padding: 1rem 1.5rem; border-left: 3px solid;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem; color: rgba(240,237,232,0.5);
+  line-height: 1.8;
+}
+.arch-step:nth-child(1) .arch-code { border-left-color: var(--red); }
+.arch-step:nth-child(2) .arch-code { border-left-color: var(--gold); }
+.arch-step:nth-child(3) .arch-code { border-left-color: var(--cyan); }
+.arch-code .hl-red  { color: var(--red-bright); }
+.arch-code .hl-gold { color: var(--gold); }
+.arch-code .hl-cyan { color: var(--cyan); }
+
+/* ── DEMO OUTPUT SECTION ── */
+#demo { background: var(--black); }
+
+.demo-container {
+  margin-top: 4rem;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 2px; background: rgba(212,175,55,0.1);
+  border: 1px solid rgba(212,175,55,0.1);
+}
+.demo-panel {
+  background: var(--black2);
+  padding: 2.5rem;
+}
+.demo-panel-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.demo-panel-label .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.demo-jp .demo-panel-label { color: var(--gold); }
+.demo-jp .dot { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+.demo-en .demo-panel-label { color: var(--cyan); }
+.demo-en .dot { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+.demo-topic {
+  font-family: 'Cinzel', serif; font-weight: 700;
+  font-size: 1.5rem; margin-bottom: 2rem;
+  grid-column: 1 / -1;
+}
+.demo-topic-wrap {
+  background: var(--black2);
+  padding: 1.5rem 2.5rem;
+  border-bottom: 2px solid rgba(212,175,55,0.1);
+}
+.demo-topic span { color: var(--gold); }
+
+.demo-poem {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.05rem; line-height: 2.1;
+  letter-spacing: 0.03em;
+}
+.demo-jp .demo-poem { color: rgba(240,237,232,0.85); }
+.demo-en .demo-poem { color: rgba(240,237,232,0.7); font-style: italic; }
+
+.stanza { margin-bottom: 1.5rem; }
+.stanza:last-child { margin-bottom: 0; }
+
+.stanza-line {
+  display: block;
+  padding: 0.15rem 0;
+  border-left: 2px solid transparent;
+  padding-left: 0.75rem;
+  transition: border-color 0.3s, color 0.3s;
+}
+.demo-jp .stanza-line:hover { border-left-color: var(--gold); color: var(--gold); }
+.demo-en .stanza-line:hover { border-left-color: var(--cyan); color: var(--cyan); }
+
+/* Tab switcher for demo */
+.demo-tabs {
+  display: flex; gap: 0; margin-top: 2rem;
+  border: 1px solid rgba(212,175,55,0.2);
+}
+.demo-tab {
+  flex: 1; padding: 1rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.2em;
+  text-transform: uppercase; text-align: center;
+  cursor: pointer; background: var(--black2);
+  border: none; color: var(--grey);
+  transition: all 0.3s;
+}
+.demo-tab.active { background: var(--black3); }
+.demo-tab:nth-child(1).active { color: var(--red-bright); border-bottom: 2px solid var(--red); }
+.demo-tab:nth-child(2).active { color: var(--gold); border-bottom: 2px solid var(--gold); }
+.demo-tab:nth-child(3).active { color: var(--cyan); border-bottom: 2px solid var(--cyan); }
+.demo-tab:hover { background: var(--black3); color: var(--white); }
+
+.demo-poem-set { display: none; }
+.demo-poem-set.active { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: rgba(212,175,55,0.1); }
+
+/* ── VALUE SECTION ── */
+#value { background: var(--black2); }
+
+.value-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 2rem; margin-top: 4rem;
+}
+.value-card {
+  border: 1px solid rgba(212,175,55,0.12);
+  padding: 2rem; position: relative;
+  background: var(--black);
+  transition: border-color 0.3s, transform 0.3s;
+  overflow: hidden;
+}
+.value-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(212,175,55,0.03) 0%, transparent 60%);
+  pointer-events: none;
+}
+.value-card:hover {
+  border-color: var(--gold);
+  transform: translateY(-4px);
+}
+.value-card-icon { font-size: 2rem; margin-bottom: 1rem; }
+.value-card-title {
+  font-family: 'Cinzel', serif; font-weight: 700;
+  font-size: 1rem; margin-bottom: 0.75rem;
+  color: var(--gold); letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.value-card-desc { color: rgba(240,237,232,0.6); font-size: 0.95rem; line-height: 1.7; }
+
+.value-table {
+  width: 100%; margin-top: 4rem;
+  border-collapse: collapse;
+  border: 1px solid rgba(212,175,55,0.1);
+}
+.value-table th {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.2em;
+  text-transform: uppercase; padding: 1rem 1.5rem;
+  background: var(--black3);
+  text-align: left;
+}
+.value-table th:nth-child(1) { color: var(--red-bright); }
+.value-table th:nth-child(2) { color: var(--gold); }
+.value-table td {
+  padding: 0.9rem 1.5rem;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.9rem;
+  color: rgba(240,237,232,0.65);
+}
+.value-table tr:hover td { background: rgba(255,255,255,0.02); color: var(--white); }
+.value-table td:nth-child(1) { color: rgba(240,237,232,0.5); font-family: 'Space Mono', monospace; font-size: 0.8rem; }
+
+/* ── SKILLS SECTION ── */
+#skills { background: var(--black); }
+
+.skills-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem; margin-top: 4rem;
+}
+.skill-item {
+  display: flex; align-items: flex-start; gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: var(--black2);
+  transition: border-color 0.3s;
+}
+.skill-item:hover { border-color: rgba(0,229,255,0.3); }
+.skill-check {
+  font-size: 0.9rem; color: var(--cyan);
+  flex-shrink: 0; padding-top: 0.15rem;
+}
+.skill-text { font-size: 0.9rem; color: rgba(240,237,232,0.7); line-height: 1.5; }
+.skill-text strong { color: var(--white); display: block; margin-bottom: 0.2rem; font-size: 0.95rem; }
+
+/* ── CTA SECTION ── */
+#cta {
+  background: var(--black2);
+  min-height: 60vh;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; position: relative; overflow: hidden;
+}
+.cta-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(139,0,0,0.2) 0%, transparent 70%),
+    radial-gradient(ellipse at 80% 20%, rgba(212,175,55,0.08) 0%, transparent 50%);
+}
+.cta-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.cta-inner { position: relative; z-index: 2; padding: 4rem; }
+.cta-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.4em;
+  text-transform: uppercase; color: var(--cyan);
+  margin-bottom: 1.5rem;
+}
+.cta-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 900; margin-bottom: 1rem;
+  line-height: 1.1;
+}
+.cta-title span { color: var(--gold); }
+.cta-sub {
+  color: rgba(240,237,232,0.55); max-width: 520px;
+  margin: 0 auto 2.5rem; font-size: 1rem; line-height: 1.7;
+}
+.cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+.btn {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem; letter-spacing: 0.2em;
+  text-transform: uppercase; text-decoration: none;
+  padding: 1rem 2.5rem; border: 1px solid;
+  cursor: pointer; background: transparent;
+  transition: all 0.3s; display: inline-block;
+}
+.btn-primary {
+  border-color: var(--gold); color: var(--gold);
+}
+.btn-primary:hover {
+  background: var(--gold); color: var(--black);
+  box-shadow: 0 0 30px rgba(212,175,55,0.3);
+}
+.btn-secondary {
+  border-color: rgba(240,237,232,0.2); color: rgba(240,237,232,0.5);
+}
+.btn-secondary:hover {
+  border-color: var(--cyan); color: var(--cyan);
+  box-shadow: 0 0 20px rgba(0,229,255,0.15);
+}
+
+/* ── FOOTER ── */
+footer {
+  background: var(--black);
+  padding: 2rem 4rem;
+  display: flex; align-items: center; justify-content: space-between;
+  border-top: 1px solid rgba(212,175,55,0.1);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.15em;
+  color: rgba(240,237,232,0.25);
+}
+footer .footer-brand { color: var(--gold); opacity: 0.6; }
+footer .footer-tech span { color: var(--cyan); opacity: 0.5; margin: 0 0.5rem; }
+
+/* ── Scroll-reveal ── */
+.reveal {
+  opacity: 0; transform: translateY(30px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+
+/* ── Scanline flicker on code blocks ── */
+.arch-code {
+  position: relative; overflow: hidden;
+}
+.arch-code::after {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px; background: rgba(0,229,255,0.08);
+  animation: scanline 4s linear infinite;
+}
+@keyframes scanline {
+  0% { top: 0; }
+  100% { top: 100%; }
+}
+
+/* Glow pulse on active elements */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 8px currentColor; }
+  50% { box-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  nav { padding: 1rem 1.5rem; }
+  section { padding: 5rem 1.5rem; }
+  .problem-grid { grid-template-columns: 1fr; }
+  .demo-container { grid-template-columns: 1fr; }
+  .demo-poem-set.active { grid-template-columns: 1fr; }
+  .value-grid { grid-template-columns: 1fr; }
+  .skills-grid { grid-template-columns: 1fr 1fr; }
+  .hero-pipeline { flex-direction: column; }
+  footer { flex-direction: column; gap: 0.5rem; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+<div id="progress"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Omar<span>.</span>Momtaz</div>
+  <div class="nav-links">
+    <a href="#problem">Problem</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#demo">Demo</a>
+    <a href="#value">Value</a>
+    <a href="#cta">Hire</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-vignette"></div>
+  <div class="kanji-bg" id="kanjiContainer"></div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow">AI/ML Engineering · Portfolio Case Study</div>
+    <h1 class="hero-title">
+      <span class="line-red">Bilingual</span>
+      <span class="line-gold">Haiku Pipeline</span>
+    </h1>
+    <p class="hero-sub">
+      A three-step local AI pipeline that generates Japanese haiku sequences
+      with English translations — no API key, no cloud, runs on CPU.
+    </p>
+
+    <div class="hero-tags">
+      <span class="tag tag-red">LangChain LCEL</span>
+      <span class="tag tag-gold">TinyLlama</span>
+      <span class="tag tag-cyan">MarianMT</span>
+      <span class="tag tag-red">Local LLM</span>
+      <span class="tag tag-gold">Multilingual NLP</span>
+      <span class="tag tag-cyan">Zero API Cost</span>
+    </div>
+
+    <div class="hero-pipeline">
+      <div class="pipe-node">
+        <div class="node-label">Step 01</div>
+        <div class="node-val">TinyLlama</div>
+        <div class="node-label" style="margin-top:0.2rem">Imagery Gen</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node">
+        <div class="node-label">Step 02</div>
+        <div class="node-val">Python Engine</div>
+        <div class="node-label" style="margin-top:0.2rem">5-7-5 Assembly</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node">
+        <div class="node-label">Step 03</div>
+        <div class="node-val">MarianMT</div>
+        <div class="node-label" style="margin-top:0.2rem">EN → JA</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node" style="border-color:rgba(0,229,255,0.5)">
+        <div class="node-label">Output</div>
+        <div class="node-val" style="color:var(--cyan)">日本語 + EN</div>
+        <div class="node-label" style="margin-top:0.2rem">Bilingual Poem</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-hint">
+    <span>Scroll to explore</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="section-inner">
+    <div class="section-label reveal">01 — The Problem</div>
+    <h2 class="section-title reveal reveal-delay-1">
+      Three failures.<br>Three engineering lessons.
+    </h2>
+    <p class="reveal reveal-delay-2" style="color:rgba(240,237,232,0.55); max-width:600px; margin-bottom:0">
+      Every fix made the system more robust. This is what separates
+      a portfolio project from production engineering.
+    </p>
+
+    <div class="problem-grid">
+      <div class="problem-card reveal">
+        <div class="problem-num">01</div>
+        <div class="problem-icon">🧠</div>
+        <div class="problem-title">LLM Can't Enforce Structure</div>
+        <div class="problem-desc">
+          TinyLlama was asked to output 3 lines with a 5-7-5 syllable
+          pattern. Every run returned prose, examples, and meta-commentary
+          about the task — not the task itself.
+        </div>
+        <div class="problem-fix">
+          <strong>Fix →</strong> Python enforces structure. LLM generates
+          creative words. Each tool does what it was trained to do.
+        </div>
+      </div>
+
+      <div class="problem-card reveal reveal-delay-1">
+        <div class="problem-num">02</div>
+        <div class="problem-icon">⚡</div>
+        <div class="problem-title">Broken Framework Abstraction</div>
+        <div class="problem-desc">
+          <code style="font-family:'Space Mono',monospace;font-size:0.8rem;color:var(--gold)">pipeline("translation")</code> threw a KeyError.
+          HuggingFace removed the translation task from the registry
+          entirely in transformers v5.
+        </div>
+        <div class="problem-fix">
+          <strong>Fix →</strong> Call <code style="font-family:'Space Mono',monospace">MarianMTModel</code> directly.
+          One level below the abstraction. Always works.
+        </div>
+      </div>
+
+      <div class="problem-card reveal reveal-delay-2">
+        <div class="problem-num">03</div>
+        <div class="problem-icon">🔤</div>
+        <div class="problem-title">Sentence Model, Paragraph Input</div>
+        <div class="problem-desc">
+          Feeding the full multi-stanza poem to MarianMT collapsed all
+          stanza structure into one unbroken block of Japanese text.
+        </div>
+        <div class="problem-fix">
+          <strong>Fix →</strong> Translate line-by-line. Reassemble
+          stanzas in Python. Match input format to training data.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="section-inner">
+    <div class="section-label reveal">02 — Architecture</div>
+    <h2 class="section-title reveal reveal-delay-1">
+      How it works.<br><span style="color:var(--gold)">Every component earns its place.</span>
+    </h2>
+
+    <div class="arch-flow">
+      <div class="arch-step reveal">
+        <div class="arch-step-num">
+          <div class="arch-step-dot"></div>
+        </div>
+        <div class="arch-step-body">
+          <div class="arch-step-label">Step 01 · TinyLlama</div>
+          <div class="arch-step-title">Imagery Word Generation</div>
+          <div class="arch-step-desc">
+            TinyLlama-1.1B-Chat is invoked via LangChain LCEL to generate
+            short vivid nature words per topic. Short word lists — not structure —
+            are exactly what small LLMs do reliably. The output extends a
+            curated imagery bank used in Step 2.
+          </div>
+          <div class="arch-code">
+<span class="hl-gold">imagery_prompt</span> = PromptTemplate.from_template(<span class="hl-cyan">"Give 3 short nature words..."</span>)<br>
+<span class="hl-gold">imagery_chain</span>  = imagery_prompt | llm | StrOutputParser()<br>
+<span class="hl-gold">extra_words</span>    = imagery_chain.invoke({<span class="hl-cyan">"topic"</span>: topic})
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-step reveal">
+        <div class="arch-step-num">
+          <div class="arch-step-dot"></div>
+        </div>
+        <div class="arch-step-body">
+          <div class="arch-step-label">Step 02 · Python Template Engine</div>
+          <div class="arch-step-title">5-7-5 Haiku Assembly</div>
+          <div class="arch-step-desc">
+            Pre-built haiku templates with <code style="font-family:'Space Mono',monospace;color:var(--gold)">{A}</code>, <code style="font-family:'Space Mono',monospace;color:var(--gold)">{B}</code>, <code style="font-family:'Space Mono',monospace;color:var(--gold)">{C}</code> slots are filled
+            with imagery words. Crucially, <code style="font-family:'Space Mono',monospace;color:var(--gold)">{B}</code> IS the entire 7-syllable middle line — never
+            embedded mid-sentence. This guarantees clean, grammatical English every run.
+          </div>
+          <div class="arch-code">
+<span class="hl-cyan"># {B} = the entire line 2. Never embedded mid-sentence.</span><br>
+TEMPLATES = [<br>
+&nbsp;&nbsp;(<span class="hl-cyan">"first light on {A}"</span>, <span class="hl-gold">"{B}"</span>, <span class="hl-cyan">"cold {C} gleams"</span>),<br>
+&nbsp;&nbsp;(<span class="hl-cyan">"the last {A} falls"</span>, <span class="hl-gold">"{B}"</span>, <span class="hl-cyan">"{C} is gone"</span>),<br>
+]
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-step reveal">
+        <div class="arch-step-num">
+          <div class="arch-step-dot"></div>
+        </div>
+        <div class="arch-step-body">
+          <div class="arch-step-label">Step 03 · Helsinki-NLP MarianMT</div>
+          <div class="arch-step-title">Line-by-Line Translation</div>
+          <div class="arch-step-desc">
+            MarianMT is called directly (bypassing the broken pipeline abstraction)
+            and translates each line individually. Stanzas are reassembled in Python
+            after translation. This preserves the visual structure of the poem exactly.
+          </div>
+          <div class="arch-code">
+<span class="hl-cyan"># Direct model call — version-stable, full control</span><br>
+inputs = mt_tokenizer([line], return_tensors=<span class="hl-gold">"pt"</span>, ...)<br>
+<span class="hl-cyan">with</span> torch.no_grad():<br>
+&nbsp;&nbsp;out = mt_model.<span class="hl-gold">generate</span>(**inputs)<br>
+result = mt_tokenizer.<span class="hl-cyan">decode</span>(out[0], skip_special_tokens=True)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section id="demo">
+  <div class="section-inner">
+    <div class="section-label reveal">03 — Live Output</div>
+    <h2 class="section-title reveal reveal-delay-1">
+      Real output.<br><span style="color:var(--cyan)">Unedited.</span>
+    </h2>
+    <p class="reveal reveal-delay-2" style="color:rgba(240,237,232,0.5); margin-bottom:2rem">
+      Select a topic to see the bilingual haiku sequence.
+    </p>
+
+    <div class="demo-tabs reveal">
+      <button class="demo-tab active" onclick="showDemo(0,this)">🍂 autumn leaves</button>
+      <button class="demo-tab" onclick="showDemo(1,this)">🌧️ falling rain</button>
+      <button class="demo-tab" onclick="showDemo(2,this)">🪲 firefly</button>
+    </div>
+
+    <!-- Demo 0: Autumn Leaves -->
+    <div class="demo-poem-set active" id="demo-0">
+      <div class="demo-panel demo-jp">
+        <div class="demo-panel-label"><div class="dot"></div>日本語 — Japanese</div>
+        <div class="demo-poem">
+          <div class="stanza">
+            <span class="stanza-line">するつぼ を も っ て , もろもろ の 布 を 造 っ て い た .</span>
+            <span class="stanza-line">こう し て 山地 の もろもろ の 金 は 行 き ,</span>
+            <span class="stanza-line">寒 いやみ が 来る で あ ろ う .</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">終り の 時 に 葉 の 落ち た .</span>
+            <span class="stanza-line">風 は つい に 突風 で あ る .</span>
+            <span class="stanza-line">とき に , 地 は 寒 さ で 去 っ て しま っ た .</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">最後 の 葉 は 終 っ て い た .</span>
+            <span class="stanza-line">こう し て 山地 の もろもろ の 金 は 行 き ,</span>
+            <span class="stanza-line">い と 高 き 天 に 堅 く 立 っ て ,</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">かし の 木 , 柳 の 木 は 逃げ去 っ た .</span>
+            <span class="stanza-line">林 の 林 は みな 赤 く ,</span>
+            <span class="stanza-line">ただ ひとり の かし の 木 を 産 ん だ .</span>
+          </div>
+        </div>
+      </div>
+      <div class="demo-panel demo-en">
+        <div class="demo-panel-label"><div class="dot"></div>English — Translation</div>
+        <div class="demo-poem">
+          <div class="stanza">
+            <span class="stanza-line">pale red leaf at dusk</span>
+            <span class="stanza-line">the hillside gold has all gone</span>
+            <span class="stanza-line">dark cold earth comes</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">the last red leaf falls</span>
+            <span class="stanza-line">a cold wind moves the last branch</span>
+            <span class="stanza-line">cold earth is gone</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">the last leaf holds still</span>
+            <span class="stanza-line">the hillside gold has all gone</span>
+            <span class="stanza-line">bare grey sky waits</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">the brown oak drifts away</span>
+            <span class="stanza-line">the forest floor is all red</span>
+            <span class="stanza-line">only bare oak stays</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo 1: Falling Rain -->
+    <div class="demo-poem-set" id="demo-1">
+      <div class="demo-panel demo-jp">
+        <div class="demo-panel-label"><div class="dot"></div>日本語 — Japanese</div>
+        <div class="demo-poem">
+          <div class="stanza">
+            <span class="stanza-line">第 一 の 光 が , 雨 の 上 に 降 っ て い っ た .</span>
+            <span class="stanza-line">石 で は , したたり を も っ て 海 を 洗 い ,</span>
+            <span class="stanza-line">わたし たち は , 冷た な 地 を 耕 し て い る の で す .</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">雨 は 絶え ず 雨 を 降ら せ ,</span>
+            <span class="stanza-line">老い た 所 は , 天 が 動 く まで で あ っ た .</span>
+            <span class="stanza-line">わたし たち は 地 を 待 っ て い た が ,</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">冷 この 雨 は , 寒 い 雨 の 上 に とどま る で あ ろ う か .</span>
+            <span class="stanza-line">その 窓 は 激し く な り ,</span>
+            <span class="stanza-line">忍耐 は 寛容 を 待 つ こと を 好 み ,</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">雨 は また , 薄 い 雨 を 吸 っ て い た が ,</span>
+            <span class="stanza-line">わたし たち は , 地 に 動 く こと の な い よう に し た .</span>
+            <span class="stanza-line">わたし たち は ただ , 地 の 支配 を 続け る だけ で ,</span>
+          </div>
+        </div>
+      </div>
+      <div class="demo-panel demo-en">
+        <div class="demo-panel-label"><div class="dot"></div>English — Translation</div>
+        <div class="demo-poem">
+          <div class="stanza">
+            <span class="stanza-line">first light on thin rain</span>
+            <span class="stanza-line">stone steps pool with the grey drops</span>
+            <span class="stanza-line">cold wet earth gleams</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">the grey rain holds still</span>
+            <span class="stanza-line">the old roof holds back the sky</span>
+            <span class="stanza-line">bare wet earth waits</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">one cold rain remains</span>
+            <span class="stanza-line">the window blurs with slow streams</span>
+            <span class="stanza-line">grey dusk fades slow</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">the thin rain drifts away</span>
+            <span class="stanza-line">wet earth breathes without a sound</span>
+            <span class="stanza-line">only wet earth stays</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo 2: Firefly -->
+    <div class="demo-poem-set" id="demo-2">
+      <div class="demo-panel demo-jp">
+        <div class="demo-panel-label"><div class="dot"></div>日本語 — Japanese</div>
+        <div class="demo-poem">
+          <div class="stanza">
+            <span class="stanza-line">突 く 時 に は , 輝き と な っ て い た .</span>
+            <span class="stanza-line">高 さ は 日 を と っ て , 暗 く な っ た .</span>
+            <span class="stanza-line">その 時 , 暗やみ の 葦 は , 踊り の よう に な り ,</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">する と , 炎 の な い 火 が 残 っ て い る .</span>
+            <span class="stanza-line">年 に は 警報 を 照 し て い る .</span>
+            <span class="stanza-line">暗やみ は 黒 い 食物 を 生 む こと に よ っ て , 長 く 待 つ .</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">焼き傷 の 上 に は , 光 の あ る たいまつ の 上 に なさ い .</span>
+            <span class="stanza-line">高 さ は 日 を と っ て , 暗 く な っ た .</span>
+            <span class="stanza-line">夜 は 暗 く な る .</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">する と , 炎 の な い 火 が 残 っ て い る .</span>
+            <span class="stanza-line">暗 い 野 の 中 に , 光 が 動 く .</span>
+            <span class="stanza-line">光 は 輝 く .</span>
+          </div>
+        </div>
+      </div>
+      <div class="demo-panel demo-en">
+        <div class="demo-panel-label"><div class="dot"></div>English — Translation</div>
+        <div class="demo-poem">
+          <div class="stanza">
+            <span class="stanza-line">still pale flash at dawn</span>
+            <span class="stanza-line">the tall reeds hold the dark still</span>
+            <span class="stanza-line">then dark reeds stir</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">one brief light remains</span>
+            <span class="stanza-line">night settles after the glow</span>
+            <span class="stanza-line">black pond fades slow</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">the last soft glow falls</span>
+            <span class="stanza-line">the tall reeds hold the dark still</span>
+            <span class="stanza-line">black pond is gone</span>
+          </div>
+          <div class="stanza">
+            <span class="stanza-line">one brief light remains</span>
+            <span class="stanza-line">a light moves between the hills</span>
+            <span class="stanza-line">gone light gleams</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VALUE -->
+<section id="value">
+  <div class="section-inner">
+    <div class="section-label reveal">04 — Business Value</div>
+    <h2 class="section-title reveal reveal-delay-1">
+      The pattern that scales.<br>
+      <span style="color:var(--gold)">Beyond poetry.</span>
+    </h2>
+
+    <div class="value-grid reveal">
+      <div class="value-card">
+        <div class="value-card-icon">🔒</div>
+        <div class="value-card-title">Zero Data Exposure</div>
+        <div class="value-card-desc">
+          Everything runs locally — no data leaves the machine. Clients
+          in legal, finance, and healthcare who cannot use cloud AI can
+          deploy this pattern without compliance risk.
+        </div>
+      </div>
+      <div class="value-card">
+        <div class="value-card-icon">💰</div>
+        <div class="value-card-title">Zero API Cost</div>
+        <div class="value-card-desc">
+          No OpenAI bill. No rate limits. No account required. Models
+          download once and run indefinitely. The economics of local
+          inference compound over high-volume workloads.
+        </div>
+      </div>
+      <div class="value-card">
+        <div class="value-card-icon">🌐</div>
+        <div class="value-card-title">Multilingual Ready</div>
+        <div class="value-card-desc">
+          Helsinki-NLP provides 100+ language pairs. Swap the model
+          slug to translate to any supported language. Same pipeline,
+          same architecture, global reach.
+        </div>
+      </div>
+      <div class="value-card">
+        <div class="value-card-icon">🧩</div>
+        <div class="value-card-title">Modular Architecture</div>
+        <div class="value-card-desc">
+          Each step is independently replaceable. Swap TinyLlama for
+          Mistral-7B. Swap MarianMT for DeepL. The pipeline contract
+          never changes.
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal" style="margin-top:3rem">
+      <div class="section-label" style="margin-bottom:1.5rem">This pattern in production</div>
+      <table class="value-table">
+        <thead>
+          <tr>
+            <th>This Project</th>
+            <th>Production Equivalent</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Topic → English poem</td><td>Brief → Draft report or proposal</td></tr>
+          <tr><td>Python template enforces structure</td><td>Structured data extraction with guaranteed schema</td></tr>
+          <tr><td>MarianMT translates output</td><td>On-premise multilingual document pipeline</td></tr>
+          <tr><td>LangChain LCEL chain</td><td>Multi-step RAG or agent workflow</td></tr>
+          <tr><td>Hybrid AI + deterministic logic</td><td>Production-grade LLM systems that don't hallucinate structure</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- SKILLS -->
+<section id="skills">
+  <div class="section-inner">
+    <div class="section-label reveal">05 — Skills Demonstrated</div>
+    <h2 class="section-title reveal reveal-delay-1">What this project proves.</h2>
+
+    <div class="skills-grid">
+      <div class="skill-item reveal">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>LangChain LCEL</strong>
+          Pipeline composition with <code style="font-family:'Space Mono',monospace;font-size:0.8rem">prompt | llm | parser</code> syntax
+        </div>
+      </div>
+      <div class="skill-item reveal reveal-delay-1">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>Local LLM Inference</strong>
+          TinyLlama on CPU — no API cost, no data exposure
+        </div>
+      </div>
+      <div class="skill-item reveal reveal-delay-2">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>Direct HuggingFace Inference</strong>
+          Bypassing broken abstractions at the model level
+        </div>
+      </div>
+      <div class="skill-item reveal">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>Prompt Engineering</strong>
+          ChatML format for instruction-tuned models
+        </div>
+      </div>
+      <div class="skill-item reveal reveal-delay-1">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>Seq2Seq Translation</strong>
+          MarianMT with manual tokenization and generation
+        </div>
+      </div>
+      <div class="skill-item reveal reveal-delay-2">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>Hybrid System Design</strong>
+          AI + deterministic logic — using each where it excels
+        </div>
+      </div>
+      <div class="skill-item reveal">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>Output Parsing</strong>
+          Cleaning and structuring raw LLM completions reliably
+        </div>
+      </div>
+      <div class="skill-item reveal reveal-delay-1">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>Multilingual NLP</strong>
+          English → Japanese with structure preservation
+        </div>
+      </div>
+      <div class="skill-item reveal reveal-delay-2">
+        <div class="skill-check">▸</div>
+        <div class="skill-text">
+          <strong>Production Mindset</strong>
+          Version-stable, modular, maintainable pipeline design
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta" style="padding:0">
+  <div class="cta-bg"></div>
+  <div class="cta-grid"></div>
+  <div class="cta-inner">
+    <div class="cta-label">Available for Freelance</div>
+    <h2 class="cta-title">
+      Build your<br><span>AI pipeline</span><br>with me.
+    </h2>
+    <p class="cta-sub">
+      LangChain pipelines · Local LLM deployment · Multilingual NLP ·
+      RAG systems · AI workflow automation. No fluff. Production-grade code.
+    </p>
+    <div class="cta-buttons">
+      <a href="#" class="btn btn-primary">Hire on Upwork</a>
+      <a href="#" class="btn btn-secondary">View GitHub →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-brand">Omar Momtaz · AI/ML Engineer</div>
+  <div class="footer-tech">
+    <span>LangChain</span> · <span>HuggingFace</span> · <span>Python</span> · <span>Local LLM</span>
+  </div>
+</footer>
+
+<script>
+// Cursor
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursorRing');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top  = e.clientY + 'px';
+  setTimeout(() => {
+    ring.style.left = e.clientX + 'px';
+    ring.style.top  = e.clientY + 'px';
+  }, 80);
+});
+document.querySelectorAll('a, button, .pipe-node, .value-card, .skill-item').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    cursor.style.width = '20px'; cursor.style.height = '20px';
+    ring.style.width = '56px'; ring.style.height = '56px';
+  });
+  el.addEventListener('mouseleave', () => {
+    cursor.style.width = '12px'; cursor.style.height = '12px';
+    ring.style.width = '36px'; ring.style.height = '36px';
+  });
+});
+
+// Scroll progress
+window.addEventListener('scroll', () => {
+  const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100;
+  document.getElementById('progress').style.width = pct + '%';
+});
+
+// Scroll reveal
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.12 });
+reveals.forEach(r => observer.observe(r));
+
+// Floating kanji
+const kanjiChars = ['詩','俳','句','春','夏','秋','冬','月','花','雨','雪','風','山','川','鳥'];
+const container = document.getElementById('kanjiContainer');
+kanjiChars.forEach((k, i) => {
+  const span = document.createElement('span');
+  span.textContent = k;
+  span.style.left = (Math.random() * 90 + 5) + '%';
+  span.style.animationDuration = (20 + Math.random() * 20) + 's';
+  span.style.animationDelay = (Math.random() * -30) + 's';
+  span.style.fontSize = (4 + Math.random() * 8) + 'rem';
+  container.appendChild(span);
+});
+
+// Demo tab switcher
+function showDemo(idx, btn) {
+  document.querySelectorAll('.demo-poem-set').forEach(d => d.classList.remove('active'));
+  document.querySelectorAll('.demo-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('demo-' + idx).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>
